@@ -19,23 +19,14 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Prepare issue context
-        id: context
+      - name: Analyze and process issue with Claude
+        id: analyze
+        uses: anthropics/claude-code-action@v1
         env:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ACTION: ${{ github.event.action }}
-        run: |
-          cat > /tmp/issue_context.txt <<'EOF'
-          TITLE: $ISSUE_TITLE
-          BODY: $ISSUE_BODY
-          EOF
-          echo "context_file=/tmp/issue_context.txt" >> $GITHUB_OUTPUT
-
-      - name: Analyze issue with Claude
-        id: analyze
-        uses: anthropics/claude-code-action@v1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
@@ -66,77 +57,39 @@ jobs:
             - dropInterval inicial 1000ms (disminuye ~90ms/nivel)
 
             ## Issue a Analizar
-            ${{ github.event.issue.title }}
+            Título: ${{ env.ISSUE_TITLE }}
 
             Descripción:
-            ${{ github.event.issue.body }}
-
-            Acción: ${{ github.event.action }}
+            ${{ env.ISSUE_BODY }}
 
             ## Tu Tarea
-            1. **Selecciona labels de esta lista (máx 3):**
-               bug | enhancement | question | documentation | game-mechanic | UI/UX | performance | good first issue
+            Analiza el issue y ejecuta EXACTAMENTE estos comandos bash:
 
-            2. **Escribe un diagnóstico técnico:**
-               - Resumen del problema (1-2 frases)
-               - Funciones de game.js involucradas
-               - Archivos a modificar
-               - Enfoque de solución sugerido
-
-            3. **Responde con este formato exacto (nada más):**
+            1. Crear todos los labels (máx 3-4 caracteres para describir el tipo):
+            ```bash
+            gh label create bug --color d73a4a --force 2>/dev/null || true
+            gh label create enhancement --color a2eeef --force 2>/dev/null || true
+            gh label create question --color d876e3 --force 2>/dev/null || true
+            gh label create documentation --color 0075ca --force 2>/dev/null || true
+            gh label create game-mechanic --color e4e669 --force 2>/dev/null || true
+            gh label create UI/UX --color f9d0c4 --force 2>/dev/null || true
+            gh label create performance --color ff6b6b --force 2>/dev/null || true
+            gh label create "good first issue" --color 7057ff --force 2>/dev/null || true
             ```
-            LABELS: label1,label2,label3
-            DIAGNOSIS: [aquí va el diagnóstico en markdown]
+
+            2. Determina 2-3 labels apropiados de: bug, enhancement, question, documentation, game-mechanic, UI/UX, performance, good first issue
+
+            3. Escribe el diagnóstico técnico: resumen (1-2 frases), funciones de game.js involucradas, archivos a modificar, enfoque de solución
+
+            4. Aplica labels y publica comentario con este comando bash exacto (reemplaza LABELS y DIAGNOSIS_TEXT):
+            ```bash
+            gh issue edit ${{ env.ISSUE_NUMBER }} --add-label "LABELS"
+            gh issue comment ${{ env.ISSUE_NUMBER }} --body "## 🔍 Diagnóstico Automático
+
+            DIAGNOSIS_TEXT
+
+            ---
+            *Análisis generado automáticamente por Claude.*"
             ```
 
-            No incluyas explicaciones adicionales, solo el formato anterior.
-
-      - name: Extract labels and diagnosis
-        id: extract
-        env:
-          CLAUDE_OUTPUT: ${{ steps.analyze.outputs.stdout }}
-        run: |
-          echo "$CLAUDE_OUTPUT" > /tmp/claude_response.txt
-
-          # Extract LABELS line
-          LABELS=$(grep "^LABELS:" /tmp/claude_response.txt | sed 's/^LABELS: //' || echo "")
-          echo "labels=$LABELS" >> $GITHUB_OUTPUT
-
-          # Extract DIAGNOSIS (everything after "DIAGNOSIS:" until end or next marker)
-          DIAGNOSIS=$(sed -n '/^DIAGNOSIS: /,/^[A-Z]/p' /tmp/claude_response.txt | sed '1s/^DIAGNOSIS: //' | sed '$d' || echo "")
-          {
-            echo "diagnosis<<EOF"
-            echo "$DIAGNOSIS"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-
-      - name: Create labels and apply
-        run: |
-          # Create all possible labels
-          gh label create bug --color d73a4a --force 2>/dev/null || true
-          gh label create enhancement --color a2eeef --force 2>/dev/null || true
-          gh label create question --color d876e3 --force 2>/dev/null || true
-          gh label create documentation --color 0075ca --force 2>/dev/null || true
-          gh label create game-mechanic --color e4e669 --force 2>/dev/null || true
-          gh label create UI/UX --color f9d0c4 --force 2>/dev/null || true
-          gh label create performance --color ff6b6b --force 2>/dev/null || true
-          gh label create "good first issue" --color 7057ff --force 2>/dev/null || true
-
-          # Apply determined labels
-          if [ -n "${{ steps.extract.outputs.labels }}" ]; then
-            gh issue edit ${{ github.event.issue.number }} --add-label "${{ steps.extract.outputs.labels }}" 2>/dev/null || true
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Post diagnosis comment
-        if: steps.extract.outputs.diagnosis != ''
-        run: |
-          gh issue comment ${{ github.event.issue.number }} --body "## 🔍 Diagnóstico Automático
-
-          ${{ steps.extract.outputs.diagnosis }}
-
-          ---
-          *Análisis generado automáticamente por Claude.*"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            **IMPORTANTE:** Ejecuta TODOS los comandos bash. Responde solo con los comandos bash, sin explicaciones.
