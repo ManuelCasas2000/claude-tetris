@@ -79,9 +79,9 @@ jobs:
 
             2. Determina 2-3 labels apropiados de: bug, enhancement, question, documentation, game-mechanic, UI/UX, performance, good first issue
 
-            3. Escribe el diagnóstico técnico: resumen (1-2 frases), funciones de game.js involucradas, archivos a modificar, enfoque de solución
+            3. Escribe el diagnóstico técnico en formato Markdown válido: resumen (1-2 frases), funciones de game.js involucradas, archivos a modificar, enfoque de solución. Usa **negrita**, `código`, listas con - o números, etc.
 
-            4. Aplica labels y publica comentario con este comando bash exacto (reemplaza LABELS y DIAGNOSIS_TEXT):
+            4. Aplica labels y publica comentario con este comando bash exacto (reemplaza LABELS y DIAGNOSIS_TEXT con el Markdown generado):
             ```bash
             gh issue edit ${{ env.ISSUE_NUMBER }} --add-label "LABELS"
             gh issue comment ${{ env.ISSUE_NUMBER }} --body "## 🔍 Diagnóstico Automático
